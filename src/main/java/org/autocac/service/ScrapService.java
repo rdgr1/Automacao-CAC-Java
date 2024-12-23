@@ -93,8 +93,8 @@ public class ScrapService {
                     }
                     try(CloseableHttpResponse response = httpClient.execute(getRequest)) {
                         String responseBody = EntityUtils.toString(response.getEntity());
-                        System.out.println(Ansi.colorize("Código:",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()) +response.getStatusLine().getStatusCode());
-                        System.out.println(Ansi.colorize("Result",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()), + responseBody));
+                        System.out.println(Ansi.colorize("Código:",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()) + response.getStatusLine().getStatusCode());
+                        System.out.println(Ansi.colorize("Result",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT())+ responseBody);
                     }
                 }
             }
