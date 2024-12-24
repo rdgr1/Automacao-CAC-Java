@@ -21,7 +21,7 @@ public class SeleniumConfig {
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-browser-side-navigation");
         options.addArguments("--disable-gpu");
-        options.addArguments("--headless"); // Executar o Chrome em headless mode
+        //options.addArguments("--headless"); // Executar o Chrome em headless mode
         // Equivalente ao useAutomationExtension=false no Python
         options.setExperimentalOption("useAutomationExtension", false);
 

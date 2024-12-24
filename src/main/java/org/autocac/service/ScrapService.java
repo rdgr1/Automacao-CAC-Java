@@ -1,45 +1,46 @@
 package org.autocac.service;
-
-import com.diogonunes.jcolor.Ansi;
-import com.diogonunes.jcolor.Attribute;
-import org.apache.http.Header;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
+import com.google.gson.Gson;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import com.diogonunes.jcolor.Ansi;
+import com.diogonunes.jcolor.Attribute;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.autocac.models.PersonCacModel;
 import org.autocac.utils.SeleniumConfig;
 import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
-
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import org.autocac.utils.LoadingUtils;
+import org.openqa.selenium.Cookie;
+import static org.autocac.utils.FileUtils.savePdfFromBase64;
+
 public class ScrapService {
     public static void main(String[] args) {
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        int totalDuration = 7500; // Tempo total em milissegundos (5 segundos)
         int interval = 500;      // Intervalo de atualização do loading (500ms)
-        int steps = totalDuration / interval;
         WebDriver driver = SeleniumConfig.initializeDriver();
         try {
             System.out.println(Ansi.colorize("Iniciando Scrap...", Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()));
             // Executando script
             JavascriptExecutor jsExecutor = (JavascriptExecutor) driver;
             jsExecutor.executeScript("window.open('https://servicos.pf.gov.br/epol-sinic-publico/','_blank');");
-            LoadingUtils.showLoading("Carregando Página",steps,interval);
+            LoadingUtils.showLoading("Carregando Página",7500,interval);
            // Alternando aba
             String newTabHandle = driver.getWindowHandles().toArray()[1].toString();
             driver.switchTo().window(newTabHandle);
             // Criar uma instância da classe Actions
             Actions actions = new Actions(driver);
-            LoadingUtils.showLoading("Clicando captcha!",steps,interval);
+            LoadingUtils.showLoading("Clicando captcha!",7500,interval);
             // Clique em coordenadas específicas
             actions.moveByOffset(200, 300).click().perform();
             // Aguardando carregar
-            LoadingUtils.showLoading("Validando Captcha",steps,interval);
+            LoadingUtils.showLoading("Validando Captcha",7500,interval);
             // Verificando Página
             System.out.println(Ansi.colorize("Tiítulo:",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()) + driver.getTitle());
             // Map de cookies
@@ -48,7 +49,10 @@ public class ScrapService {
             for (Cookie cookie : driver.manage().getCookies()){
                 sessionCookies.put(cookie.getName(), cookie.getValue());
             }
+            String formattedCookies = "_cfuvid=" + sessionCookies.get("_cfuvid") + "; " +
+                    "cf_clearance=" + sessionCookies.get("cf_clearance") + ";";
             System.out.println(Ansi.colorize("Cookies Coletados!",Attribute.BRIGHT_MAGENTA_TEXT()));
+            LoadingUtils.showLoading("Aguardando tempo!",5000,interval);
             DataCacService data = new DataCacService();
             List<PersonCacModel> listFunc = data.create();
             for (PersonCacModel personCacModel : listFunc){
@@ -61,6 +65,7 @@ public class ScrapService {
                 Map<String,Object> headerGet = new HashMap<>();
                 headerGet.put("User-Agent", ((JavascriptExecutor) driver).executeScript("return navigator.userAgent"));
                 headerGet.put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8");
+                headerGet.put("Cookie",formattedCookies);
                 // Criando header post
                 Map<String,Object> headerPost = new HashMap<>();
                 headerPost.put("Content-Type", "application/json");
@@ -71,6 +76,7 @@ public class ScrapService {
                 headerPost.put("Origin","https://servicos.pf.gov.br");
                 headerPost.put("Referer","https://servicos.pf.gov.br/epol-sinic-publico/");
                 headerPost.put("Connection","keep-alive");
+                headerPost.put("Cookie",formattedCookies);
                 // Criando payload
                 Map<String, Object> payload = new HashMap<>();
                 // Inserindo dados na payload
@@ -86,20 +92,50 @@ public class ScrapService {
                 payload.put("nomeMae",nome_mom);
                 payload.put("documentoCAC",new ArrayList<String>());
                 // Fazendo Requisição GET
+                LoadingUtils.showLoading("Aguardando tempo pra requisição",10000,interval);
                 try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
-                    HttpGet getRequest = new HttpGet("");
+                    HttpGet getRequest = new HttpGet("https://servicos.pf.gov.br/sinic2-publico-rest/api/siteKey");
                     for (Map.Entry<String,Object> entry : headerGet.entrySet()) {
                         getRequest.setHeader(entry.getKey(), entry.getValue().toString());
+                        getRequest.setHeader("Cookie", sessionCookies.toString());
                     }
                     try(CloseableHttpResponse response = httpClient.execute(getRequest)) {
                         String responseBody = EntityUtils.toString(response.getEntity());
                         System.out.println(Ansi.colorize("Código:",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()) + response.getStatusLine().getStatusCode());
                         System.out.println(Ansi.colorize("Result",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT())+ responseBody);
                     }
+
+                    // Configurar e Enviar Post
+                    HttpPost postRequest = new HttpPost("https://servicos.pf.gov.br/sinic2-publico-rest/api/cac/gerar-cac-pdf");
+                    for (Map.Entry<String,Object> entry : headerPost.entrySet()) {
+                        postRequest.setHeader(entry.getKey(), entry.getValue().toString());
+                        postRequest.setHeader("Cookie", sessionCookies.toString());
+                    }
+                    String jsonPayload = new com.google.gson.Gson().toJson(payload);
+                    StringEntity entity=new StringEntity(jsonPayload, ContentType.APPLICATION_JSON);
+                    postRequest.setEntity(entity);
+                    LoadingUtils.showLoading("Aguardando tempo pra requisição",10000,interval);
+                    try (CloseableHttpResponse response = httpClient.execute(postRequest)){
+                        String responseBody = EntityUtils.toString(response.getEntity());
+                        System.out.println(Ansi.colorize("Código:",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT()) + response.getStatusLine().getStatusCode());
+                        System.out.println(Ansi.colorize("Result",Attribute.BOLD(),Attribute.BRIGHT_MAGENTA_TEXT())+ responseBody);
+                        // Converter para Json
+                        Gson gson = new Gson();
+                        Map<String,Object> jsonResponse = gson.fromJson(responseBody,Map.class);
+                        // Salvar PDF
+                        Map<String,String> pdfMap = new HashMap<>();
+                        if (jsonResponse.containsKey("pdf")){
+                            String base64Pdf = pdfMap.get("pdf");
+                            savePdfFromBase64(base64Pdf, nome_mom +"-" + cpf_func,"pdfs");
+                            System.out.println(Ansi.colorize("PDF Salvo!",Attribute.BRIGHT_MAGENTA_TEXT()));
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }finally {
+            driver.quit();
         }
     }
 }

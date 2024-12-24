@@ -11,9 +11,9 @@ public class LoadingUtils {
      * @param steps    Número de passos para completar.
      * @param interval Tempo (em milissegundos) entre os passos.
      */
-    public static void showLoading(String message, int steps, int interval) {
+    public static void showLoading(String message, int totalDuration, int interval) {
         String[] spinner = {"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"};
-
+        int steps = totalDuration / interval;
         // Definição de cores
         Attribute progressColor = Attribute.CYAN_TEXT();    // Cor da barra
         Attribute spinnerColor = Attribute.YELLOW_TEXT();   // Cor do spinner
