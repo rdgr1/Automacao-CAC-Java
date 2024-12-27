@@ -1,10 +1,11 @@
 package org.autocac.service;
 
-import com.google.gson.Gson;
+import com.google.gson.*;
 import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.autocac.models.PersonCacModel;
+import org.autocac.utils.FileUtils;
 import org.autocac.utils.SeleniumConfig;
 import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
@@ -48,7 +49,7 @@ public class ScrapService {
             logger.info("Título da página: " + driver.getTitle());
 
             // Map de cookies
-            Map<String, String> sessionCookies = new HashMap<>();
+            Map<String, String> sessionCookies = new LinkedHashMap<>();
 
             // Salvando cookies
             for (Cookie cookie : driver.manage().getCookies()) {
@@ -100,7 +101,7 @@ public class ScrapService {
                 } catch (IOException e) {
                     logger.error("Erro ao executar requisição GET", e);
                 }
-                Map<String, Object> headerPost = new HashMap<>();
+                Map<String, Object> headerPost = new LinkedHashMap<>();
                 headerPost.put("Content-Type", "application/json");
                 headerPost.put("User-Agent", ((JavascriptExecutor) driver).executeScript("return navigator.userAgent"));
                 headerPost.put("Accept", "application/json, text/plain, */*");
@@ -113,43 +114,67 @@ public class ScrapService {
                 // Fazendo Requisição POST
                 logger.info("Preparando dados para requisição POST.");
                 LoadingUtils.showLoading("Preparando dados para requisição POST",7000,interval);
-                Map<String, Object> payload = new HashMap<>();
+                Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("cpf", cpf_func);
                 payload.put("nome", nome_func);
-                payload.put("listaNacionalidade", Collections.singletonList(24)); // Lista com único elemento
+                payload.put("listaNacionalidade", Collections.singletonList(24));
                 payload.put("dtNascimento", dataBorn);
-                payload.put("coPaisNascimento", 24);
-                payload.put("noUfNascimento", null); // Equivalente ao None em Python
-                payload.put("noMunicipioNascimento", null); // Equivalente ao None em Python
-                payload.put("ufNascimento", null); // Equivalente ao None em Python
-                payload.put("coMunicipioNascimento", null);
-                payload.put("nomePai", null); // Equivalente ao None em Python
+                payload.put("coPaisNascimento", "");
+                payload.put("noUfNascimento", "");
+                payload.put("noMunicipioNascimento", "");
+                payload.put("ufNascimento", "");
+                payload.put("coMunicipioNascimento", "");
+                payload.put("nomePai", "");
                 payload.put("nomeMae", nome_mom);
-                payload.put("documentoCAC", new ArrayList<>()); // Lista vazia
 
                 String jsonPayload = new Gson().toJson(payload);
+                logger.info("Payload POST: " + jsonPayload);
+
                 RequestBody body = RequestBody.create(jsonPayload, MediaType.get("application/json"));
 
                 Request.Builder requestBuilderPost = new Request.Builder()
                         .url("https://servicos.pf.gov.br/sinic2-publico-rest/api/cac/gerar-cac-pdf")
                         .post(body);
-
-                for (Map.Entry<String, Object> header : headerPost.entrySet()) {
-                    requestBuilderPost.addHeader(header.getKey(), header.getValue().toString());
-                }
-
+                LoadingUtils.showLoading("Preparando dados para requisição POST",7000,interval);
+                // Adicionando headers
+                headerPost.forEach((key, value) -> {
+                    requestBuilderPost.addHeader(key, value.toString());
+                });
                 Request requestPost = requestBuilderPost.build();
-                LoadingUtils.showLoading("Fazendo a requisição...",7000,interval);
                 try (Response response = client.newCall(requestPost).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
                         logger.info("Requisição POST bem-sucedida. Código: " + response.code());
+                        // Processar a resposta JSON
                         String responseBody = response.body().string();
-                        logger.info("Resposta POST: " + responseBody);
-                    } else {
-                        logger.error("Erro na requisição POST. Código: " + response.code());
-                        logger.error("Resposta:"+ response.code());
+                        JsonElement jsonElement = JsonParser.parseString(responseBody);
+
+                        if (jsonElement.isJsonArray()) {
+                            JsonArray array = jsonElement.getAsJsonArray();
+                            int fileCounter = 1; // Contador para diferenciar os arquivos
+
+                            for (JsonElement element : array) {
+                                JsonObject json = element.getAsJsonObject();
+
+                                // Extrair o valor base64 da chave "pdf"
+                                if (json.has("pdf")) {
+                                    String pdfBase64 = json.get("pdf").getAsString();
+
+                                    // Gerar um nome de arquivo único com base no contador
+                                    String fileName = "arquivo_" + fileCounter++;
+
+                                    // Salvar o PDF usando o FileUtils
+                                    FileUtils.savePdfFromBase64(pdfBase64, fileName, "output_directory");
+                                    logger.info("PDF salvo com sucesso: " + fileName);
+                                }
+                            }
+                        } else {
+                            logger.error("A resposta não contém um array JSON.");
                     }
-                } catch (IOException e) {
+                } else {
+                        logger.error("Erro na requisição POST. Código: " + response.code());
+                    }
+                }
+                catch (IOException e) {
                     logger.error("Erro ao executar requisição POST", e);
                 }
             }
