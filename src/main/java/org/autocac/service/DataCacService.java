@@ -12,15 +12,15 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.FileInputStream;
-
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 
-
-
 public class DataCacService {
+
     public List<PersonCacModel> create() throws IOException {
 
         List<PersonCacModel> persons = new ArrayList<>();
@@ -32,29 +32,42 @@ public class DataCacService {
 
         List<Row> rows = (List<Row>) toList(sheet.iterator());
         rows.remove(0);
-        rows.forEach(row ->{
-         List<Cell> cells = (List<Cell>) toList(row.cellIterator());
 
-         PersonCacModel personCac =  PersonCacModel.builder()
-                 .name(cells.get(1).getStringCellValue())
-                 .motherName(cells.get(2).getStringCellValue())
-                 .cpf(cells.get(3).getStringCellValue())
-                 .dateOfBirth(String.valueOf(cells.get(4).getDateCellValue()))
-                 .build();
+        // Formato desejado para a data (formato americano)
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
-         persons.add(personCac);
+        rows.forEach(row -> {
+            List<Cell> cells = (List<Cell>) toList(row.cellIterator());
 
+            // Obtendo e formatando a data de nascimento
+            String formattedDate = "";
+            try {
+                Date date = cells.get(4).getDateCellValue();
+                formattedDate = dateFormat.format(date);
+            } catch (Exception e) {
+                System.err.println("Erro ao formatar a data de nascimento: " + e.getMessage());
+            }
+
+            PersonCacModel personCac = PersonCacModel.builder()
+                    .name(cells.get(1).getStringCellValue())
+                    .motherName(cells.get(2).getStringCellValue())
+                    .cpf(cells.get(3).getStringCellValue())
+                    .dateOfBirth(formattedDate)
+                    .build();
+
+            persons.add(personCac);
         });
 
         return persons;
     }
 
-    public List<?> toList(Iterator<?> iterator){
+    public List<?> toList(Iterator<?> iterator) {
         return IteratorUtils.toList(iterator);
     }
 
-    public void scannerCac(List<PersonCacModel> persons){
+    public void scannerCac(List<PersonCacModel> persons) {
         Gson gson = new Gson();
         String jsonArray = gson.toJson(persons);
+        System.out.println(jsonArray);
     }
 }

@@ -8,7 +8,6 @@ public class LoadingUtils {
      * Exibe uma barra de progresso animada no console com cores.
      *
      * @param message  Mensagem inicial.
-     * @param steps    Número de passos para completar.
      * @param interval Tempo (em milissegundos) entre os passos.
      */
     public static void showLoading(String message, int totalDuration, int interval) {
