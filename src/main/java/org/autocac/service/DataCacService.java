@@ -25,7 +25,7 @@ public class DataCacService {
 
         List<PersonCacModel> persons = new ArrayList<>();
 
-        @Cleanup FileInputStream file = new FileInputStream("src/main/resources/CERTIDÃOPOLICIAFEDERAL.xlsx");
+        @Cleanup FileInputStream file = new FileInputStream("src/main/resources/ModeloPF.xlsx");
 
         Workbook workbook = new XSSFWorkbook(file);
         Sheet sheet = workbook.getSheetAt(0);
@@ -35,9 +35,14 @@ public class DataCacService {
 
         // Formato desejado para a data (formato americano)
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-
         rows.forEach(row -> {
             List<Cell> cells = (List<Cell>) toList(row.cellIterator());
+
+            // 🔒 Proteção contra linhas incompletas
+            if (cells.size() < 5) {
+                //System.err.println("Linha ignorada (colunas insuficientes): " + cells.size() + " colunas.");
+                return;
+            }
 
             // Obtendo e formatando a data de nascimento
             String formattedDate = "";
@@ -57,7 +62,6 @@ public class DataCacService {
 
             persons.add(personCac);
         });
-
         return persons;
     }
 

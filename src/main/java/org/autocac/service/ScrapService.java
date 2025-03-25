@@ -1,6 +1,7 @@
 package org.autocac.service;
 
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
 import okhttp3.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -11,6 +12,8 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import org.autocac.utils.LoadingUtils;
 import org.openqa.selenium.Cookie;
@@ -18,11 +21,9 @@ import org.openqa.selenium.Cookie;
 public class ScrapService {
 
     private static final Logger logger = LogManager.getLogger(ScrapService.class);
-
-    public static void main(String[] args) {
+    public void gerarCertidaoPF() {
         int interval = 500; // Intervalo de atualização do loading (500ms)
         WebDriver driver = SeleniumConfig.initializeDriver();
-
         try {
             logger.info("Iniciando Scrap...");
             LoadingUtils.showLoading("Carregando...",7000, interval);
@@ -58,10 +59,12 @@ public class ScrapService {
             LoadingUtils.showLoading("Salvando cookies...",5000,interval);
             String formattedCookies = "_cfuvid=" + sessionCookies.get("_cfuvid") + "; " +
                     "cf_clearance=" + sessionCookies.get("cf_clearance") + ";";
+            // Capturando Token Recaptcha Google
 
             logger.info("Cookies coletados com sucesso.");
             LoadingUtils.showLoading("Aguardando tempo!", 5000, interval);
-
+//            String tokenRecaptcha = (String)((JavascriptExecutor) driver).executeScript("return grecaptcha.getResponse();");
+//            logger.info("Token do reCAPTCHA CAPTURADO!");
             DataCacService data = new DataCacService();
             List<PersonCacModel> listFunc = data.create();
 
@@ -111,6 +114,7 @@ public class ScrapService {
                 headerPost.put("Referer", "https://servicos.pf.gov.br/epol-sinic-publico/");
                 headerPost.put("Connection", "keep-alive");
                 headerPost.put("Cookie", formattedCookies);
+                headerPost.put("token.recaptcha.google","");
                 // Fazendo Requisição POST
                 logger.info("Preparando dados para requisição POST.");
                 LoadingUtils.showLoading("Preparando dados para requisição POST",7000,interval);
@@ -126,9 +130,9 @@ public class ScrapService {
                 payload.put("coMunicipioNascimento", "");
                 payload.put("nomePai", "");
                 payload.put("nomeMae", nome_mom);
+                payload.put("documentoCac", new ArrayList<>());
 
                 String jsonPayload = new Gson().toJson(payload);
-                logger.info("Payload POST: " + jsonPayload);
 
                 RequestBody body = RequestBody.create(jsonPayload, MediaType.get("application/json"));
 
@@ -144,37 +148,64 @@ public class ScrapService {
                 try (Response response = client.newCall(requestPost).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
                         logger.info("Requisição POST bem-sucedida. Código: " + response.code());
-                        // Processar a resposta JSON
-                        String responseBody = response.body().string();
-                        JsonElement jsonElement = JsonParser.parseString(responseBody);
 
-                        if (jsonElement.isJsonArray()) {
-                            JsonArray array = jsonElement.getAsJsonArray();
-                            int fileCounter = 1; // Contador para diferenciar os arquivos
+                        // Obter os bytes da resposta
+                        byte[] rawBytes = response.body().bytes();
 
-                            for (JsonElement element : array) {
-                                JsonObject json = element.getAsJsonObject();
+                        // Verifica se é GZIP (assinatura 1F 8B)
+                        if (rawBytes.length > 2 && rawBytes[0] == 0x1F && (rawBytes[1] & 0xFF) == 0x8B) {
+                            logger.info("Resposta está em GZIP. Descomprimindo...");
+                            rawBytes = FileUtils.decompressGzip(rawBytes);
+                        }
 
-                                // Extrair o valor base64 da chave "pdf"
+                        // Verifica se é PDF binário (assinatura "%PDF")
+                        String headerCheck = new String(Arrays.copyOfRange(rawBytes, 0, 4), StandardCharsets.US_ASCII);
+                        if (headerCheck.equals("%PDF")) {
+                            logger.info("Detectado PDF binário.");
+                            String fileName = "certidao_" + System.currentTimeMillis() + ".pdf";
+                            FileUtils.savePdfFromBytes(rawBytes, fileName, "output_directory");
+                            logger.info("PDF salvo com sucesso: " + fileName);
+                        } else {
+                            // Trata como texto (provavelmente JSON com base64)
+                            String bodyString = new String(rawBytes, StandardCharsets.UTF_8);
+                            // Verifica o tipo JSON
+                            JsonReader reader = new JsonReader(new StringReader(bodyString));
+                            reader.setLenient(true);
+                            JsonElement jsonElement = JsonParser.parseReader(reader);
+
+                            if (jsonElement.isJsonArray()) {
+                                JsonArray array = jsonElement.getAsJsonArray();
+                                int fileCounter = 1;
+
+                                for (JsonElement element : array) {
+                                    JsonObject json = element.getAsJsonObject();
+
+                                    if (json.has("pdf")) {
+                                        String pdfBase64 = json.get("pdf").getAsString();
+                                        String fileName = "arquivo_" + fileCounter++;
+                                        FileUtils.savePdfFromBase64(pdfBase64, fileName, "output_directory");
+                                        logger.info("PDF salvo com sucesso: " + fileName);
+                                    }
+                                }
+                            } else if (jsonElement.isJsonObject()) {
+                                JsonObject json = jsonElement.getAsJsonObject();
+
                                 if (json.has("pdf")) {
                                     String pdfBase64 = json.get("pdf").getAsString();
-
-                                    // Gerar um nome de arquivo único com base no contador
-                                    String fileName = "arquivo_" + fileCounter++;
-
-                                    // Salvar o PDF usando o FileUtils
+                                    String fileName = nome_func + "-CPF:" + cpf_func + "-CERTIDAO-PF";
                                     FileUtils.savePdfFromBase64(pdfBase64, fileName, "output_directory");
                                     logger.info("PDF salvo com sucesso: " + fileName);
+                                } else {
+                                    logger.error("JSON não contém a chave 'pdf'.");
                                 }
+                            } else {
+                                logger.error("Formato de resposta JSON inesperado.");
                             }
-                        } else {
-                            logger.error("A resposta não contém um array JSON.");
-                    }
-                } else {
+                        }
+                    } else {
                         logger.error("Erro na requisição POST. Código: " + response.code());
                     }
-                }
-                catch (IOException e) {
+                } catch (IOException e) {
                     logger.error("Erro ao executar requisição POST", e);
                 }
             }
@@ -183,5 +214,10 @@ public class ScrapService {
         } finally {
             driver.quit();
         }
+    }
+
+    public static void main(String[] args) {
+        ScrapService service = new ScrapService();
+        service.gerarCertidaoPF();
     }
 }

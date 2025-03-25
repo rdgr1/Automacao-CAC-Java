@@ -7,10 +7,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-@Setter
 @ToString
-@Getter
 @Builder
+@Getter
+@Setter
 public class PersonCacModel {
 
     private String name;
@@ -27,4 +27,5 @@ public class PersonCacModel {
         this.motherName = motherName;
         this.dateOfBirth = dateOfBirth;
     }
+
 }

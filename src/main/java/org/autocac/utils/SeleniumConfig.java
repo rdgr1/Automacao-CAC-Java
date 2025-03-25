@@ -10,7 +10,7 @@ import java.util.Map;
 
 public class SeleniumConfig {
     public static WebDriver initializeDriver(){
-        System.setProperty("webdriver.chrome.driver", "/home/rrxx/.cache/selenium/chromedriver/linux64/131.0.6778.108/chromedriver");
+        System.setProperty("webdriver.chrome.driver", "/opt/homebrew/bin/chromedriver");
         ChromeOptions options = new ChromeOptions();
 
         // Equivalentes às opções do Python
