@@ -21,7 +21,7 @@ import org.openqa.selenium.Cookie;
 public class ScrapService {
 
     private static final Logger logger = LogManager.getLogger(ScrapService.class);
-    public void gerarCertidaoPF() {
+    public void gerarCertidaoPF(List<PersonCacModel> listFunc) {
         int interval = 500; // Intervalo de atualização do loading (500ms)
         WebDriver driver = SeleniumConfig.initializeDriver();
         try {
@@ -63,10 +63,6 @@ public class ScrapService {
 
             logger.info("Cookies coletados com sucesso.");
             LoadingUtils.showLoading("Aguardando tempo!", 5000, interval);
-//            String tokenRecaptcha = (String)((JavascriptExecutor) driver).executeScript("return grecaptcha.getResponse();");
-//            logger.info("Token do reCAPTCHA CAPTURADO!");
-            DataCacService data = new DataCacService();
-            List<PersonCacModel> listFunc = data.create();
 
             for (PersonCacModel personCacModel : listFunc) {
                 String nome_func = personCacModel.getName().trim();
@@ -214,10 +210,5 @@ public class ScrapService {
         } finally {
             driver.quit();
         }
-    }
-
-    public static void main(String[] args) {
-        ScrapService service = new ScrapService();
-        service.gerarCertidaoPF();
     }
 }

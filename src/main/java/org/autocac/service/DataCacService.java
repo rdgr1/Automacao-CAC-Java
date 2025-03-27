@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -21,13 +22,11 @@ import java.util.List;
 
 public class DataCacService {
 
-    public List<PersonCacModel> create() throws IOException {
+    public List<PersonCacModel> create(MultipartFile file) throws IOException {
 
         List<PersonCacModel> persons = new ArrayList<>();
 
-        @Cleanup FileInputStream file = new FileInputStream("src/main/resources/ModeloPF.xlsx");
-
-        Workbook workbook = new XSSFWorkbook(file);
+        Workbook workbook = new XSSFWorkbook(file.getInputStream());
         Sheet sheet = workbook.getSheetAt(0);
 
         List<Row> rows = (List<Row>) toList(sheet.iterator());
